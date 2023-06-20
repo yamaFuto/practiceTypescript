@@ -1,11 +1,164 @@
 import Head from 'next/head'
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import styles from '@/styles/Home.module.css'
+import useInput from "./hooks";
+import axios from "axios";
+import { useEffect, useState, ChangeEvent, FormEvent, MouseEvent } from "react";
+import { useDispatch } from "react-redux";
+import { add, minus } from "../store/modules/counter";
+import { useSelector } from "react-redux";
+import { addWork, minusWork, addAsyncWithStatus, getAsyncWithStatus } from "../store/modules/work";
+import Modal from "@/components/modal"
+import { useRouter } from 'next/router';
+import store from "@/store/index";
+import Image from "next/image"
+import { setServers } from 'dns';
 
-const inter = Inter({ subsets: ['latin'] })
+const URL = `http://localhost:8000/api/test`;
+const URL_IMAGE = "http://localhost:8000/api/image";
+const S3_IMAGE = "http://localhost:8000/api/imageS3";
+
+type User = {
+  id: number,
+  title: string,
+  color: string
+}
+
+type stateType = {
+  work: {
+    count: number,
+    users: User[],
+    status: boolean
+  },
+  counter: {
+    count: number
+  }
+}
+
 
 export default function Home() {
+  //createAsyncThunkの型定義
+  type AppDispatch = typeof store.dispatch;
+  const dispatch = useDispatch<AppDispatch>();
+
+  //reduxのstate
+  const status = useSelector((state: stateType) => state.work.status);
+  const count = useSelector((state: stateType) => state.counter.count);
+  const workCount = useSelector((state: stateType) => state.work.count);
+  const workUser = useSelector((state: stateType) => state.work.users);
+
+  const [futo, setFuto] = useState<string>("");
+  const [s3, setS3] = useState<string>("");
+
+  const router = useRouter();
+  const onClickRouter = () => {
+    router.push({
+      pathname: "/test",
+      query: { q : titleProps.value },
+    })
+  }
+
+  //useInputの定義
+  const [titleProps, resetTitle] = useInput("");
+  const [colorProps, resetColor] = useInput("111");
+
+  const [ image, setImage ] = useState<File>();
+
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+
+
+  const ans = {
+    titleProps: titleProps.value,
+    colorProps: colorProps.value
+  }
+
+  const onNewColor = async () => {
+     await axios.post(URL, ans).then((res) =>{
+      // console.log("success");
+    })
+  }
+
+  //imageをstateに格納
+  const getImage = (e: ChangeEvent<HTMLInputElement>) => {
+    if(!e.target.files) return;
+    const img = e.target.files[0];
+    setImage(img);
+  }
+
+  // console.log(image);
+
+  //databaseにtitleとcolorを格納
+  // console.log(titleProps.value);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onNewColor();
+    resetTitle();
+    resetColor();
+  }
+
+  //databaseにpublic/imageを格納
+  // const handleSubmit = (event: MouseEvent<HTMLButtonElement>) => {
+  //   //e.target.files[0]⇒FormDataにappend⇒送信
+  //   event.preventDefault();
+  //   const data = new FormData();
+  //   if (image != undefined) {
+  //     data.append("image", image);
+  //   }
+  //   axios.post(URL_IMAGE, data, {
+  //     headers: {
+  //       'content-type' : 'multipart/form-data',
+  //     }
+  //   }).then(response => {
+  //     console.log(response);
+  //     console.log("success");
+  //   }).catch((e) => {
+  //     console.log(e);
+  //   });
+  // }
+
+  const handleSubmit = (event: MouseEvent<HTMLButtonElement>) => {
+    //e.target.files[0]⇒FormDataにappend⇒送信
+    event.preventDefault();
+    const data = new FormData();
+    if (image != undefined) {
+      data.append("image", image);
+    }
+    axios.post(S3_IMAGE, data, {
+      headers: {
+        'content-type' : 'multipart/form-data',
+      }
+    }).then(response => {
+      // console.log(response);
+      setS3(response.data);
+    }).catch((e) => {
+      console.log(e);
+    });
+  }
+
+  // console.log(s3);
+
+  //reduxの関数を利用
+  const clickHandler = () => {
+    dispatch(add(1));
+  }
+
+  const clickHandler1 = () => {
+    dispatch(addWork(1));
+  }
+  const clickHandler2 = () => {
+    dispatch(minusWork(1))
+  }
+
+  const clickHandler3 = ()=> {
+    dispatch(addAsyncWithStatus(2));
+  }
+
+  const clickHandler4 = () => {
+    dispatch(getAsyncWithStatus());
+  }
+
+  useEffect(() => {
+    dispatch(getAsyncWithStatus());
+  }, [dispatch])
+
   return (
     <>
       <Head>
@@ -14,110 +167,80 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main className={styles.main}>
-        <div className={styles.description}>
-          <p>
-            Get started by editing&nbsp;
-            <code className={styles.code}>src/pages/index.tsx</code>
-          </p>
-          <div>
-            <a
-              href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              By{' '}
-              <Image
-                src="/vercel.svg"
-                alt="Vercel Logo"
-                className={styles.vercelLogo}
-                width={100}
-                height={24}
-                priority
-              />
-            </a>
-          </div>
+      <form onSubmit={submit}>
+        <input {...titleProps} type="text" placeholder="color title..." required/>
+        <input {...colorProps} type="text" placeholder="color..." required/>
+        <button>click!</button>
+      </form>
+      <button onClick={clickHandler}>test</button>
+      {count}
+      <br></br>
+      <button onClick={clickHandler1} >plus</button>
+      <button onClick={clickHandler2}>minus</button>
+      {workCount}
+      <br></br>
+      <button onClick={clickHandler3}>AddAsyncWithStatus</button>
+      {status}
+      <br></br>
+      <button onClick={clickHandler4}>get</button>
+      <br></br>
+      {status ? workUser.map(user => {
+        return (
+        <div key={user.id}>
+          {user.id}:{user.title}:{user.color}
         </div>
+        )
+      }) : <p>しばらくお待ちください</p>}
 
-        <div className={styles.center}>
-          <Image
-            className={styles.logo}
-            src="/next.svg"
-            alt="Next.js Logo"
-            width={180}
-            height={37}
-            priority
-          />
-          <div className={styles.thirteen}>
-            <Image
-              src="/thirteen.svg"
-              alt="13"
-              width={40}
-              height={31}
-              priority
-            />
-          </div>
-        </div>
-
-        <div className={styles.grid}>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Docs <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Find in-depth information about Next.js features and&nbsp;API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Learn <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Learn about Next.js in an interactive course with&nbsp;quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Templates <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Discover and deploy boilerplate example Next.js&nbsp;projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2 className={inter.className}>
-              Deploy <span>-&gt;</span>
-            </h2>
-            <p className={inter.className}>
-              Instantly deploy your Next.js site to a shareable URL
-              with&nbsp;Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
+      <form method="post" encType="multipart/form-data">
+        <input onChange={getImage} name="image" type="file" accept="image/png, image/jpeg, image/jpg" />
+        <button onClick={handleSubmit}>upload</button>
+      </form>
+      <div>
+      <button onClick={() => setIsOpen(true)}>開く</button>
+      <Image src={s3} alt="image" width={1000} height={1000}></Image>
+    
+      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)}>
+      <section className="text-gray-600 body-font relative">
+            <div className="container px-5 mx-auto">
+              <div className="flex flex-col text-center w-full mb-4">
+                <h1 className="sm:text-3xl text-2xl font-medium title-font mb-4 text-gray-900">Post your photographs</h1>
+                <p className="lg:w-2/3 mx-auto leading-relaxed text-base">Up to 4 photos</p>
+              </div>
+              <div className="lg:w-1/2 md:w-2/3 mx-auto">
+                <div className="flex flex-wrap -m-2">
+                  <div className="p-2 w-1/2">
+                    <div className="relative">
+                      <label htmlFor="creatorName" className="leading-7 text-sm text-gray-600">Name</label>
+                      <input type="text" id="creatorName" name="creatorName" className="w-40 bg-gray-100 bg-opacity-50 rounded border border-gray-300 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out" />
+                    </div>
+                    <div className="relative">
+                      <label htmlFor="PhotoName" className="leading-7 text-sm text-gray-600">Photo Name</label>
+                      <input type="text" id="PhotoName" name="PhotoName" className="w-40 bg-gray-100 bg-opacity-50 rounded border border-gray-300 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out" />
+                    </div>
+                  </div>
+                  <div className="p-2 text-center w-full">
+                    <div className="relative flex flex-col">
+                      <label htmlFor="message" className="leading-7 text-sm text-gray-600 mr-64">Photos</label>
+                      <div>
+                      <input className="mb-3" onChange={getImage} name="image" type="file" accept="image/png, image/jpeg, image/jpg" />
+                      <input className="mb-3" onChange={getImage} name="image" type="file" accept="image/png, image/jpeg, image/jpg" />
+                      <input className="mb-3" onChange={getImage} name="image" type="file" accept="image/png, image/jpeg, image/jpg" />
+                      <input className="mb-3" onChange={getImage} name="image" type="file" accept="image/png, image/jpeg, image/jpg" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-2 w-full">
+                    <button className="flex mx-auto text-white bg-indigo-500 border-0 py-2 px-8 focus:outline-none hover:bg-indigo-600 rounded text-lg">Button</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <button className="border-2 p-2 rounded-lg hover:bg-zinc-400" onClick={() => setIsOpen(false)}>cancel</button>
+      </Modal>
+    </div>
+    <button onClick={onClickRouter}>go to other page</button>
     </>
   )
 }
